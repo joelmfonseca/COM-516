@@ -1,2 +1,3 @@
 *.npy
-*.npg
+*.png
+*.lprof
