@@ -210,7 +210,7 @@ def plot_compare_energy(data, len_alpha_array, len_beta_array, filename):
 
 def plot_error(data, data_random, alpha_array, beta_array, filename):
     '''Plot the mean or standard deviation error for the different values of alpha and beta. It also compares the results with a random guess.'''
-    fig, ax = plt.subplots(1, 1, figsize=(15,15))
+    fig, ax = plt.subplots(1, 1, figsize=(10,5))
     colormap = plt.cm.gist_ncar
     colors = [colormap(i) for i in np.linspace(0.1, 0.9, len(beta_array) + 1)]
 
@@ -225,8 +225,8 @@ def plot_error(data, data_random, alpha_array, beta_array, filename):
         
     for i, b in enumerate(mean_array):
         ax.errorbar(alpha_array, b, std_array[i], color=colors[i], capsize=3, label=r'$\beta = $' + str(beta_array[i]))
-        ax.set_ylabel('error mean and std\n', size=16)
-        ax.set_xlabel('\nalpha', size=16)
+        ax.set_ylabel('error mean and std\n')
+        ax.set_xlabel('\nalpha')
 
     # reconstruct data_random structure
     mean_array_random = np.zeros((1, len(alpha_array)))
@@ -274,11 +274,11 @@ if __name__ == '__main__':
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
-    plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis')
+    # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
-    plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
+    # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=[0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_constant_schedule_8000_10.npy')
