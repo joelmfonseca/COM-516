@@ -14,6 +14,7 @@ def get_energy(Y_vector, vector, W_matrix, vector_dim):
     return np.sum(np.abs(Y_vector - relu(np.matmul(W_matrix, vector) / np.sqrt(vector_dim))))
 
 def get_reconstructed_error(X_vector_true, X_vector, vector_size):
+    '''Return the reconstruction error from the estimate and the ground truth.'''
     return np.linalg.norm(X_vector - X_vector_true)**2/(4*vector_size)
 
 def gibbs_boltzmann_prob(delta_energy, beta):
@@ -72,8 +73,9 @@ def simulated_annealing(beta, t, schedule_function):
     '''Implementation of the simulated annealing method.'''
     return schedule_function(beta, t)
 
-def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function, random_wait, num_iter_mcmc):
+def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function, num_iter_mcmc):
     '''Apply the Markov Chain Monte-Carlo (MCMC) method.'''
+
     X_vector = np.random.choice(a=[-1,1], size=(vector_size,1))
     energy_acc = []
     error_acc = []
@@ -81,22 +83,60 @@ def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_functi
     beta_iter = beta
     counter = 0
     for i in tqdm(range(num_iter_mcmc), desc='MCMC iterations [' + str(num_iter_mcmc) + ']'):
-        # if random_wait and np.random.choice(a=[0,1], p=[0.7, 0.3]):
-        #     beta_iter = simulated_annealing(beta, i, schedule_function)
-        # elif not random_wait:
-        #     beta_iter = simulated_annealing(beta, i, schedule_function)
         if not counter:
-            counter = np.random.choice(a=np.arange(50,150))
+            counter = np.random.choice(a=np.arange(N/2,3*N/2))
             beta_iter = simulated_annealing(beta, i, schedule_function)
         else:
             counter -= 1
+
+        # apply the transition function
         energy, error, X_vector = transition_function(Y_vector, X_vector_true, X_vector, W_matrix, vector_size, beta_iter)
         beta_acc.append(beta_iter)
         energy_acc.append(energy)
         error_acc.append(error)
+
     return beta_acc, energy_acc, error_acc, X_vector
 
-def get_average_statistics(num_samples, vector_size, beta, transition_function, schedule_function, random_wait, num_iter_mcmc, num_exp):
+def mcmc_optimized(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function):
+    '''Apply the Markov Chain Monte-Carlo (MCMC) method with stop condition.'''
+
+    X_vector = np.random.choice(a=[-1,1], size=(vector_size,1))
+    energy_acc = []
+    error_acc = []
+    beta_acc = []
+    beta_iter = beta
+    best_error = (0, vector_size)
+    patience = 3*vector_size
+    t = 0
+    while True:
+        # wait to go through 2N iterations before updating the beta parameter
+        if (t+1) % (2*vector_size) == 0:
+            beta_iter = simulated_annealing(beta, t, schedule_function)
+
+        # apply the transition function
+        energy, error, X_vector = transition_function(Y_vector, X_vector_true, X_vector, W_matrix, vector_size, beta_iter)
+        beta_acc.append(beta_iter)
+        energy_acc.append(energy)
+        error_acc.append(error)
+
+        # keep track of the best error and its corresponding iteration t
+        if best_error[1] > error:
+            best_error = (t, error)
+        
+        # quit the process if we managed to get a perfect reconstruction or if the patience time has exceeded
+        # if t % 200 == 0:
+        if error == 0 or t-best_error[0] > patience:
+
+            print(error, best_error)
+            break
+        
+        # update iteration t
+        t += 1
+
+        #TODO check that every array has same length
+    return beta_acc, energy_acc, error_acc, X_vector
+
+def get_average_statistics(num_samples, vector_size, beta, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Run multiple experiments to average the statistics.'''
     beta_acc = []
     energy_acc = []
@@ -106,22 +146,34 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
         W_matrix = np.random.normal(size=(num_samples, vector_size))
         X_vector_true = np.random.choice(a=[-1,1], size=(vector_size,1))
         Y_vector = relu(np.matmul(W_matrix, X_vector_true) / np.sqrt(vector_size))
-        beta_updated, energy, error, X_vector = mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function, random_wait, num_iter_mcmc)
+        beta_updated, energy, error, X_vector = mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function, num_iter_mcmc)
         beta_acc.append(beta_updated)
         energy_acc.append(energy)
         error_acc.append(error)
         error_final_acc.append(get_reconstructed_error(X_vector_true, X_vector, vector_size))
     return np.mean(beta_acc, 0), np.mean(energy_acc, 0), np.mean(error_acc, 0), np.mean(error_final_acc, 0), np.std(error_final_acc, 0), 
 
-def generate_data(N, alpha_array, beta_array, transition_function, schedule_function, random_wait, num_iter_mcmc, num_exp):
+def generate_data(N, alpha_array, beta_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Generate and save the data from the experiments.'''
     data = []
     for i, alpha in enumerate(tqdm(alpha_array, desc='alpha ' + str(alpha_array))):
         for j, beta in enumerate(tqdm(beta_array, desc='beta ' + str(beta_array))):
-            beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, random_wait, num_iter_mcmc, num_exp)
+            beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
             data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_final_mean':error_final_mean, 'error_final_std':error_final_std})
     
-    filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) +'_' + str(random_wait) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
+    filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
+    np.save(filename, data)
+
+def generate_data_normalized(N, alpha_array, beta_array_basis, transition_function, schedule_function, num_iter_mcmc, num_exp):
+    '''Generate and save the data from the experiments with normalized energy.'''
+    data = []
+    for i, alpha in enumerate(tqdm(alpha_array, desc='alpha ' + str(alpha_array))):
+        beta_array = [beta_basis/(alpha * N) for beta_basis in beta_array_basis]
+        for j, beta in enumerate(tqdm(beta_array, desc='beta ' + str(beta_array))):
+            beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
+            data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_final_mean':error_final_mean, 'error_final_std':error_final_std})
+    
+    filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
     np.save(filename, data)
 
 def plot_energy(data, len_alpha_array, len_beta_array, filename):
@@ -202,33 +254,32 @@ def plot_error_and_schedule(data, len_alpha_array, filename):
 
 if __name__ == '__main__':
 
-    # parameters
+    # fixed parameters
     N = 1000
-    num_iter_mcmc = 8000
-    num_exp = 1
-    alpha_array = np.linspace(0.5, 5, 10)
-    # beta_array = np.linspace(0.5, 3, 6)
-    beta_array = [1/(alpha * N) for alpha in alpha_array]
+    NUM_ITER_MCMC = 8000
+    NUM_EXP = 10
+    ALPHA_ARRAY = np.linspace(1, 4, 4)
+    BETA_ARRAY = np.linspace(0.5, 3, 6)
 
-    # generate_data(N, alpha_array, beta_array, transition_function=metropolis_transition, schedule_function=constant_schedule, random_wait=False, num_iter_mcmc, num_exp)
+    generate_data_normalized(N=N, alpha_array=ALPHA_ARRAY, beta_array_basis=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     # data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
     # plot_energy(data_metropolis_cst, len(alpha_array), len(beta_array), 'energy_mean_grid_search_metropolis')
 
-    generate_data(N, alpha_array, beta_array, transition_function=glauber_transition, schedule_function=constant_schedule, random_wait=False, num_iter_mcmc=num_iter_mcmc, num_exp=num_exp)
-    data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_False_8000_1.npy')
-    plot_energy(data_glauber_cst, len(alpha_array), len(beta_array), 'energy_mean_grid_search_glauber')
+    # generate_data(N, alpha_array, beta_array, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=num_iter_mcmc, num_exp=num_exp)
+    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_False_8000_1.npy')
+    # plot_energy(data_glauber_cst, len(alpha_array), len(beta_array), 'energy_mean_grid_search_glauber')
 
-    # generate_data(N, alpha_array, [0], transition_function=random_transition, schedule_function=constant_schedule, random_wait=False, num_iter_mcmc, num_exp)
+    # generate_data(N, alpha_array, [0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc, num_exp)
     # data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_8000_10.npy')
 
     # plot_error(data_metropolis_cst, data_random, 'error_final_mean', alpha_array, beta_array, 'error_mean')
     # plot_error(data_metropolis_cst, data_random, 'error_final_std', alpha_array, beta_array, 'error_std')
 
-    alpha_array_restrained = np.linspace(3, 5, 3)
-    # generate_data(N, alpha_array_restrained, [0.5518027258816396], metropolis_transition, linear_schedule, False, num_iter_mcmc, num_exp)
+    # alpha_array_restrained = np.linspace(3, 5, 3)
+    # generate_data(N, alpha_array_restrained, [0.5518027258816396], metropolis_transition, linear_schedule num_iter_mcmc, num_exp)
     # data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5518027258816396]_metropolis_transition_linear_schedule_False_8000_1.npy')
     # plot_error_and_schedule(data_metropolis_linear, len(alpha_array_restrained), 'error_mean_metropolis_linear_random_wait_False_1_exp')
 
-    # generate_data(N, alpha_array_restrained, [1], metropolis_transition, exponential_schedule, False, num_iter_mcmc, num_exp)
+    # generate_data(N, alpha_array_restrained, [1], metropolis_transition, exponential_schedule, num_iter_mcmc, num_exp)
     #data_metropolis_exponential = np.load('500_[3. 4. 5.]_[1]_metropolis_transition_exponential_schedule_False_8000_2.npy')
     #plot_error_and_schedule(data_metropolis_exponential, len(alpha_array_restrained), 'error_mean_metropolis_exponential_random_wait_False_1_exp')
