@@ -164,77 +164,88 @@ def generate_data(N, alpha_array, beta_array, transition_function, schedule_func
     filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
     np.save(filename, data)
 
-def generate_data_normalized(N, alpha_array, beta_array_basis, transition_function, schedule_function, num_iter_mcmc, num_exp):
-    '''Generate and save the data from the experiments with normalized energy.'''
-    data = []
-    for i, alpha in enumerate(tqdm(alpha_array, desc='alpha ' + str(alpha_array))):
-        beta_array = [beta_basis/(alpha * N) for beta_basis in beta_array_basis]
-        for j, beta in enumerate(tqdm(beta_array, desc='beta ' + str(beta_array))):
-            beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
-            data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_final_mean':error_final_mean, 'error_final_std':error_final_std})
-    
-    filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
-    np.save(filename, data)
-
 def plot_energy(data, len_alpha_array, len_beta_array, filename):
     '''Plot the energy of the grid search on the parameters alpha and beta.'''
     fig, ax = plt.subplots(len_alpha_array,len_beta_array, sharex=True, sharey=True, figsize=(15,15))
+    N = len(data[0]['energy_mean'])
     for k, d in enumerate(data):
         i = int(np.floor(k / len_beta_array))
         j = k % len_beta_array
-        ax[i,j].plot(d['energy_mean'], color='b')
-        ax[i,j].set_title(r'$\alpha = $' + str(d['alpha']) + r' and $\beta = $' + str(d['beta']))
+        alpha = d['alpha']
+        ax[i,j].plot([e/(alpha*N) for e in d['energy_mean']], color='b')
+        ax[i,j].set_title(r'$\alpha = $' + str(alpha) + r' and $\beta = $' + str(d['beta']))
+        if d['energy_mean'][-1] == 0:
+            ax[i,j].plot(list(d['energy_mean']).index(0), 0, marker='o', color='b')
+        # if j == 0:
+        #     ax[i,j].set_ylabel('energy')
+        # if i == len_alpha_array-1:
+        #     ax[i,j].set_xlabel('iteration')
+
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axes
+    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+    plt.grid(False)
+    plt.xlabel('\niterations', size=16)
+    plt.ylabel('energy\n\n', size=16)
+    plt.tight_layout()
+    fig.savefig(filename + '.pdf')
+
+def plot_compare_energy(data, len_alpha_array, len_beta_array, filename):
+    '''Plot the energy of the grid search on the parameters alpha and beta.'''
+    fig, ax = plt.subplots(len_alpha_array,len_beta_array, sharex=True, sharey=True, figsize=(15,15))
+    N = len(data[0]['energy_mean'])
+    for k, d in enumerate(data):
+        i = int(np.floor(k / len_beta_array))
+        j = k % len_beta_array
+        alpha = d['alpha']
+        ax[i,j].plot([e/(alpha*N) for e in d['energy_mean']], color='b')
+        ax[i,j].set_title(r'$\alpha = $' + str(alpha) + r' and $\beta = $' + str(d['beta']))
         ax[i,j].text(2000, 1000, 'last value = {:.2f}'.format(d['energy_mean'][-1]))
         if j == 0:
             ax[i,j].set_ylabel('energy')
         if i == len_alpha_array-1:
             ax[i,j].set_xlabel('iteration')
     plt.tight_layout()
-    fig.savefig(filename + '.png')
+    fig.savefig(filename + '.pdf')
 
-def plot_error(data, data_random, field, alpha_array, beta_array, filename):
+def plot_error(data, data_random, alpha_array, beta_array, filename):
     '''Plot the mean or standard deviation error for the different values of alpha and beta. It also compares the results with a random guess.'''
-    if field == 'error_final_mean':
-        label = 'error mean'
-    elif field == 'error_final_std':
-        label = 'error std'
     fig, ax = plt.subplots(1, 1, figsize=(15,15))
+    colormap = plt.cm.gist_ncar
+    colors = [colormap(i) for i in np.linspace(0.1, 0.9, len(beta_array) + 1)]
 
     # reconstruct data structure
-    beta_array_rec = np.zeros((len(beta_array), len(alpha_array)))
+    mean_array = np.zeros((len(beta_array), len(alpha_array)))
+    std_array = np.zeros((len(beta_array), len(alpha_array)))
     for k, d in enumerate(data):
         i = int(np.floor(k / len(beta_array)))
         j = k % len(beta_array)
-        beta_array_rec[j, i] = d[field]
+        mean_array[j, i] = d['error_final_mean']
+        std_array[j, i] = d['error_final_std']
         
-    for i, b in enumerate(beta_array_rec):
-        ax.plot(alpha_array, b, color='b', label=r'$\beta = $' + str(beta_array[i]))
-        ax.set_ylabel(label)
-        ax.set_xlabel('alpha')
+    for i, b in enumerate(mean_array):
+        ax.errorbar(alpha_array, b, std_array[i], color=colors[i], capsize=3, label=r'$\beta = $' + str(beta_array[i]))
+        ax.set_ylabel('error mean and std\n', size=16)
+        ax.set_xlabel('\nalpha', size=16)
 
     # reconstruct data_random structure
-    beta_array_rec = np.zeros((1, len(alpha_array)))
+    mean_array_random = np.zeros((1, len(alpha_array)))
+    std_array_random = np.zeros((1, len(alpha_array)))
     for k, d in enumerate(data_random):
-        beta_array_rec[0, k] = d[field]
+        mean_array_random[0, k] = d['error_final_mean']
+        std_array_random[0, k] = d['error_final_std']
     
-    for i, b in enumerate(beta_array_rec):
-        ax.plot(alpha_array, b, color='b', label='random', linestyle='--')
-        ax.set_ylabel(label)
-        ax.set_xlabel('alpha')
+    for i, b in enumerate(mean_array_random):
+        ax.errorbar(alpha_array, b, std_array_random[i], fmt='--', color=colors[-1], capsize=3, label='random', linestyle='--')
 
     plt.xticks(alpha_array)
-
-    # for nice colors
-    colormap = plt.cm.gist_ncar #nipy_spectral, Set1,Paired   
-    colors = [colormap(i) for i in np.linspace(0.1, 0.9,len(ax.lines))]
-    for i,j in enumerate(ax.lines):
-        j.set_color(colors[i])
     plt.legend()
-    fig.savefig(filename + '.png')
+    plt.tight_layout()
+    fig.savefig(filename + '.pdf')
 
 def plot_error_and_schedule(data, len_alpha_array, filename):
     '''Plot the error with the schedule for specific alpha values.'''
-    fig, ax_left = plt.subplots(len_alpha_array, 1, sharex=True, sharey=True, figsize=(15,15))
+    fig, ax_left = plt.subplots(len_alpha_array, 1, sharex=True, sharey=True, figsize=(10,10))
     for k, d in enumerate(data):
         ax_right = ax_left[k].twinx()
         ax_left[k].plot(d['energy_mean'], color='b', label=r'e($\hat{x}$, X)')
@@ -250,36 +261,36 @@ def plot_error_and_schedule(data, len_alpha_array, filename):
             ax_left[k].set_xlabel('iteration')
             
     plt.tight_layout()
-    fig.savefig(filename + '.png')
+    fig.savefig(filename + '.pdf')
 
 if __name__ == '__main__':
 
     # fixed parameters
-    N = 1000
+    N = 500
     NUM_ITER_MCMC = 8000
     NUM_EXP = 10
-    ALPHA_ARRAY = np.linspace(1, 4, 4)
+    ALPHA_ARRAY = np.linspace(0.5, 5, 10) 
     BETA_ARRAY = np.linspace(0.5, 3, 6)
 
-    generate_data_normalized(N=N, alpha_array=ALPHA_ARRAY, beta_array_basis=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    # data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
-    # plot_energy(data_metropolis_cst, len(alpha_array), len(beta_array), 'energy_mean_grid_search_metropolis')
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
+    plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis')
 
-    # generate_data(N, alpha_array, beta_array, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=num_iter_mcmc, num_exp=num_exp)
-    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_False_8000_1.npy')
-    # plot_energy(data_glauber_cst, len(alpha_array), len(beta_array), 'energy_mean_grid_search_glauber')
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
+    plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
 
-    # generate_data(N, alpha_array, [0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc, num_exp)
-    # data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_8000_10.npy')
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=[0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_constant_schedule_8000_10.npy')
 
-    # plot_error(data_metropolis_cst, data_random, 'error_final_mean', alpha_array, beta_array, 'error_mean')
-    # plot_error(data_metropolis_cst, data_random, 'error_final_std', alpha_array, beta_array, 'error_std')
+    plot_error(data=data_metropolis_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_metropolis')
+    plot_error(data=data_glauber_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_glauber')
 
     # alpha_array_restrained = np.linspace(3, 5, 3)
-    # generate_data(N, alpha_array_restrained, [0.5518027258816396], metropolis_transition, linear_schedule num_iter_mcmc, num_exp)
+    # generate_data(N, alpha_array_restrained, [0.5518027258816396], metropolis_transition, linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     # data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5518027258816396]_metropolis_transition_linear_schedule_False_8000_1.npy')
     # plot_error_and_schedule(data_metropolis_linear, len(alpha_array_restrained), 'error_mean_metropolis_linear_random_wait_False_1_exp')
 
-    # generate_data(N, alpha_array_restrained, [1], metropolis_transition, exponential_schedule, num_iter_mcmc, num_exp)
+    # generate_data(N, alpha_array_restrained, [1], metropolis_transition, exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     #data_metropolis_exponential = np.load('500_[3. 4. 5.]_[1]_metropolis_transition_exponential_schedule_False_8000_2.npy')
     #plot_error_and_schedule(data_metropolis_exponential, len(alpha_array_restrained), 'error_mean_metropolis_exponential_random_wait_False_1_exp')
