@@ -154,15 +154,23 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
     return np.mean(beta_acc, 0), np.mean(energy_acc, 0), np.mean(error_acc, 0), np.mean(error_final_acc, 0), np.std(error_final_acc, 0), 
 
 def generate_data(N, alpha_array, beta_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
-    '''Generate and save the data from the experiments.'''
+    '''Generate and save the data from the experiments by creating all combinations of alpha and beta.'''
     data = []
-    for i, alpha in enumerate(tqdm(alpha_array, desc='alpha ' + str(alpha_array))):
-        for j, beta in enumerate(tqdm(beta_array, desc='beta ' + str(beta_array))):
+    for alpha in tqdm(alpha_array, desc='alpha ' + str(alpha_array)):
+        for beta in tqdm(beta_array, desc='beta ' + str(beta_array)):
             beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
             data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_final_mean':error_final_mean, 'error_final_std':error_final_std})
     
     filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
     np.save(filename, data)
+
+def load_data(data, len_alpha_array, len_beta_array, list_tuple):
+    '''Load the data of interest characterized by a list of alpha and beta tuple.'''
+    res = []
+    for i, d in enumerate(data):
+        if (d['alpha'], d['beta']) in list_tuple:
+            res.append(d)
+    return res
 
 def plot_energy(data, len_alpha_array, len_beta_array, filename):
     '''Plot the energy of the grid search on the parameters alpha and beta.'''
@@ -187,24 +195,6 @@ def plot_energy(data, len_alpha_array, len_beta_array, filename):
     plt.grid(False)
     plt.xlabel('\niterations', size=16)
     plt.ylabel('energy\n\n', size=16)
-    plt.tight_layout()
-    fig.savefig(filename + '.pdf')
-
-def plot_compare_energy(data, len_alpha_array, len_beta_array, filename):
-    '''Plot the energy of the grid search on the parameters alpha and beta.'''
-    fig, ax = plt.subplots(len_alpha_array,len_beta_array, sharex=True, sharey=True, figsize=(15,15))
-    N = len(data[0]['energy_mean'])
-    for k, d in enumerate(data):
-        i = int(np.floor(k / len_beta_array))
-        j = k % len_beta_array
-        alpha = d['alpha']
-        ax[i,j].plot([e/(alpha*N) for e in d['energy_mean']], color='b')
-        ax[i,j].set_title(r'$\alpha = $' + str(alpha) + r' and $\beta = $' + str(d['beta']))
-        ax[i,j].text(2000, 1000, 'last value = {:.2f}'.format(d['energy_mean'][-1]))
-        if j == 0:
-            ax[i,j].set_ylabel('energy')
-        if i == len_alpha_array-1:
-            ax[i,j].set_xlabel('iteration')
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
@@ -243,12 +233,16 @@ def plot_error(data, data_random, alpha_array, beta_array, filename):
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
-def plot_error_and_schedule(data, len_alpha_array, filename):
+def plot_error_and_schedule(data_cst, len_alpha_array, len_beta_array, list_tuple, data, len_alpha_array_sa, filename):
     '''Plot the error with the schedule for specific alpha values.'''
-    fig, ax_left = plt.subplots(len_alpha_array, 1, sharex=True, sharey=True, figsize=(10,10))
+
+    data_original = load_data(data_cst, len_alpha_array, len_beta_array, list_tuple)
+
+    fig, ax_left = plt.subplots(len_alpha_array_sa, 1, sharex=True, sharey=True, figsize=(10,10))
     for k, d in enumerate(data):
         ax_right = ax_left[k].twinx()
-        ax_left[k].plot(d['energy_mean'], color='b', label=r'e($\hat{x}$, X)')
+        ax_left[k].plot(d['error_mean'], color='b', label='linear schedule')
+        ax_left[k].plot(data_original[k]['error_mean'], color='b', linestyle=':', label=r'cst schedule $\beta = $' + '{:.1f}'.format(data_original[k]['beta']))
         ax_right.plot(d['beta_mean'], color='r', label=r'$\beta$')
         ax_left[k].set_title(r'$\alpha = $' + str(d['alpha']) + r' and $\beta_0 = $' + '{:.2f}'.format(d['beta']))
         #ax[k].text(2000, 1000, 'last value = {:.2f}'.format(d['energy_mean'][-1]))
@@ -270,27 +264,35 @@ if __name__ == '__main__':
     NUM_ITER_MCMC = 8000
     NUM_EXP = 10
     ALPHA_ARRAY = np.linspace(0.5, 5, 10) 
-    BETA_ARRAY = np.linspace(0.5, 3, 6)
+    BETA_ARRAY = np.linspace(3.5, 5, 4)
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
     # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis')
+    # data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[3.5 4.  4.5 5. ]_metropolis_transition_constant_schedule_8000_10.npy')
+    # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis_sequel')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
+    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
     # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
+    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[3.5 4.  4.5 5. ]_glauber_transition_constant_schedule_8000_10.npy')
+    # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber_sequel')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=[0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_constant_schedule_8000_10.npy')
+    # data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_constant_schedule_8000_10.npy')
 
-    plot_error(data=data_metropolis_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_metropolis')
-    plot_error(data=data_glauber_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_glauber')
+    # plot_error(data=data_metropolis_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_metropolis')
+    # plot_error(data=data_glauber_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_glauber')
 
-    # alpha_array_restrained = np.linspace(3, 5, 3)
-    # generate_data(N, alpha_array_restrained, [0.5518027258816396], metropolis_transition, linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    # data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5518027258816396]_metropolis_transition_linear_schedule_False_8000_1.npy')
-    # plot_error_and_schedule(data_metropolis_linear, len(alpha_array_restrained), 'error_mean_metropolis_linear_random_wait_False_1_exp')
+    ALPHA_ARRAY_SA = np.linspace(3, 5, 3)
+    BETA_0 = 0.5
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_linear_schedule_8000_10.npy')
+    plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_linear_turfu')
 
-    # generate_data(N, alpha_array_restrained, [1], metropolis_transition, exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # generate_data_zip(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[3,2,3], transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+
+    # generate_data(N, alpha_array_restrained, [1], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     #data_metropolis_exponential = np.load('500_[3. 4. 5.]_[1]_metropolis_transition_exponential_schedule_False_8000_2.npy')
     #plot_error_and_schedule(data_metropolis_exponential, len(alpha_array_restrained), 'error_mean_metropolis_exponential_random_wait_False_1_exp')
