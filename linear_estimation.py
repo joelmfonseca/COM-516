@@ -61,7 +61,7 @@ def constant_schedule(beta, t):
 
 def linear_schedule(beta, t):
     '''Implementation of a linear schedule for simulated annealing.'''
-    step = 4/8000
+    step = 500/8000
     return beta + step*t
 
 def exponential_schedule(beta, t):
@@ -84,7 +84,7 @@ def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_functi
     counter = 0
     for i in tqdm(range(num_iter_mcmc), desc='MCMC iterations [' + str(num_iter_mcmc) + ']'):
         if not counter:
-            counter = np.random.choice(a=np.arange(N/2,3*N/2))
+            counter = np.random.choice(a=[0,0])#np.arange(N/2,3*N/2))
             beta_iter = simulated_annealing(beta, i, schedule_function)
         else:
             counter -= 1
@@ -244,7 +244,7 @@ def plot_error_and_schedule(data_cst, len_alpha_array, len_beta_array, list_tupl
         ax_left[k].plot(d['error_mean'], color='b', label='linear schedule')
         ax_left[k].plot(data_original[k]['error_mean'], color='b', linestyle=':', label=r'cst schedule $\beta = $' + '{:.1f}'.format(data_original[k]['beta']))
         ax_right.plot(d['beta_mean'], color='r', label=r'$\beta$')
-        ax_left[k].set_title(r'$\alpha = $' + str(d['alpha']) + r' and $\beta_0 = $' + '{:.2f}'.format(d['beta']))
+        ax_left[k].set_title(r'$\alpha = $' + str(d['alpha']) + r' and $\beta_0 = $' + '{:.1f}'.format(d['beta']))
         #ax[k].text(2000, 1000, 'last value = {:.2f}'.format(d['energy_mean'][-1]))
         ax_right.tick_params('y', colors='r')
         ax_left[k].tick_params('y', colors='b')
@@ -273,7 +273,7 @@ if __name__ == '__main__':
     # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis_sequel')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
+    data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
     # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
     # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[3.5 4.  4.5 5. ]_glauber_transition_constant_schedule_8000_10.npy')
     # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber_sequel')
@@ -287,12 +287,19 @@ if __name__ == '__main__':
     ALPHA_ARRAY_SA = np.linspace(3, 5, 3)
     BETA_0 = 0.5
     # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_linear_schedule_8000_10.npy')
-    plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_linear_turfu')
+    # data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_linear_schedule_8000_10.npy')
+    # plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_linear')
 
-    # generate_data_zip(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[3,2,3], transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=glauber_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # data_glauber_linear = np.load('500_[3. 4. 5.]_[0.5]_glauber_transition_linear_schedule_8000_10.npy')
+    # plot_error_and_schedule(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_glauber_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_glauber_linear')
 
-    # generate_data(N, alpha_array_restrained, [1], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    #data_metropolis_exponential = np.load('500_[3. 4. 5.]_[1]_metropolis_transition_exponential_schedule_False_8000_2.npy')
-    #plot_error_and_schedule(data_metropolis_exponential, len(alpha_array_restrained), 'error_mean_metropolis_exponential_random_wait_False_1_exp')
+    generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    data_metropolis_exp = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_exponential_schedule_8000_10.npy')
+    plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_exp, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_exp')
+
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=glauber_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # data_glauber_exp = np.load('500_[3. 4. 5.]_[0.5]_glauber_transition_exponential_schedule_8000_10.npy')
+    # plot_error_and_schedule(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_glauber_exp, len(ALPHA_ARRAY_SA), 'error_mean_std_glauber_exp')
+
+
