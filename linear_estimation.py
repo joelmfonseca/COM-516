@@ -3,11 +3,26 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import multiprocessing as mp
+from functools import partial
+import os
 
 def relu(vector):
     '''Return the Rectifier Linear Unit (ReLU) function applied to a vector. It is defined as x-> max{0,x}.'''
     vector[vector < 0] = 0
     return vector
+
+def matmul(X,Y):
+    '''Dummy manual matrix multiplication.'''
+    # iterate through rows of X
+    result = np.zeros((X.shape[0], Y.shape[1]))
+    for i in range(len(X)):
+        # iterate through columns of Y
+        for j in range(len(Y[0])):
+            # iterate through rows of Y
+            for k in range(len(Y)):
+                result[i][j] += X[i][k] * Y[k][j]
+    return result
 
 def get_energy(Y_vector, vector, W_matrix, vector_dim):
     '''Return the energy of a vector compared to an observation vector.'''
@@ -61,12 +76,12 @@ def constant_schedule(beta, t):
 
 def linear_schedule(beta, t):
     '''Implementation of a linear schedule for simulated annealing.'''
-    step = 500/8000
+    step = 5/8000
     return beta + step*t
 
 def exponential_schedule(beta, t):
     '''Implementation of an exponential schedule for simulated annealing.'''
-    e = np.exp(np.log(5)/8000)
+    e = np.exp(np.log(4)/8000)
     return beta * e**t
 
 def simulated_annealing(beta, t, schedule_function):
@@ -84,7 +99,8 @@ def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_functi
     counter = 0
     for i in tqdm(range(num_iter_mcmc), desc='MCMC iterations [' + str(num_iter_mcmc) + ']'):
         if not counter:
-            counter = np.random.choice(a=[0,0])#np.arange(N/2,3*N/2))
+            counter = 0
+            # counter = np.random.choice(a=np.arange(N/2,3*N/2))
             beta_iter = simulated_annealing(beta, i, schedule_function)
         else:
             counter -= 1
@@ -141,7 +157,6 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
     beta_acc = []
     energy_acc = []
     error_acc = []
-    error_final_acc = []
     for i in tqdm(range(num_exp), desc='experiments [' + str(num_exp) + ']'):
         W_matrix = np.random.normal(size=(num_samples, vector_size))
         X_vector_true = np.random.choice(a=[-1,1], size=(vector_size,1))
@@ -150,19 +165,37 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
         beta_acc.append(beta_updated)
         energy_acc.append(energy)
         error_acc.append(error)
-        error_final_acc.append(get_reconstructed_error(X_vector_true, X_vector, vector_size))
-    return np.mean(beta_acc, 0), np.mean(energy_acc, 0), np.mean(error_acc, 0), np.mean(error_final_acc, 0), np.std(error_final_acc, 0), 
+    return np.mean(beta_acc, 0), np.mean(energy_acc, 0), np.mean(error_acc, 0), np.std(error_acc, 0) 
 
-def generate_data(N, alpha_array, beta_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
-    '''Generate and save the data from the experiments by creating all combinations of alpha and beta.'''
+def generate_data_exploration(N, alpha_array, beta_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
+    '''Generate and save the data from the experiments by creating all combinations of alpha and beta for exploration.'''
     data = []
     for alpha in tqdm(alpha_array, desc='alpha ' + str(alpha_array)):
         for beta in tqdm(beta_array, desc='beta ' + str(beta_array)):
-            beta_mean, energy_mean, error_mean, error_final_mean, error_final_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
-            data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_final_mean':error_final_mean, 'error_final_std':error_final_std})
+            beta_mean, energy_mean, error_mean, error_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
+            data.append({'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_std':error_std})
     
-    filename = str(N) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '_' + str(num_iter_mcmc) + '_' + str(num_exp)+ '.npy'
+    filename = str(N) + '_' + str(num_iter_mcmc) + '_' + str(num_exp) + '_' + str(alpha_array)+ '_' + str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '.npy'
     np.save(filename, data)
+
+def generate_data_sa(N, alpha_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
+    '''Generate and save the data from the experiments for the simulated annealing technique.'''
+    data = []
+    for alpha in tqdm(alpha_array, desc='alpha ' + str(alpha_array)):
+        # to normalize the energy
+        beta_0 = 1/alpha
+        beta_mean, energy_mean, error_mean, error_std = get_average_statistics(int(alpha*N), N, beta_0, transition_function, schedule_function, num_iter_mcmc, num_exp)
+        data.append({'alpha':alpha, 'beta':beta_0, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_std':error_std})
+    
+    filename = str(N) + '_' + str(num_iter_mcmc) + '_' + str(num_exp) + '_' + str(alpha_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '.npy'
+    np.save(filename, data)
+
+def generate_data_parallel(alpha_beta_tuple, N, transition_function, schedule_function, num_iter_mcmc, num_exp):
+    '''Generate the data from the specified configuration for parallelization.'''
+    alpha = alpha_beta_tuple[0]
+    beta = alpha_beta_tuple[1]
+    beta_mean, energy_mean, error_mean, error_std = get_average_statistics(int(alpha*N), N, beta, transition_function, schedule_function, num_iter_mcmc, num_exp)
+    return {'alpha':alpha, 'beta':beta, 'beta_mean':beta_mean, 'energy_mean':energy_mean, 'error_mean':error_mean, 'error_std':error_std}
 
 def load_data(data, len_alpha_array, len_beta_array, list_tuple):
     '''Load the data of interest characterized by a list of alpha and beta tuple.'''
@@ -233,7 +266,7 @@ def plot_error(data, data_random, alpha_array, beta_array, filename):
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
-def plot_error_and_schedule(data_cst, len_alpha_array, len_beta_array, list_tuple, data, len_alpha_array_sa, filename):
+def plot_error_and_schedule(data_cst, len_alpha_array, len_beta_array, list_tuple, data_schedule_type, data, len_alpha_array_sa, filename):
     '''Plot the error with the schedule for specific alpha values.'''
 
     data_original = load_data(data_cst, len_alpha_array, len_beta_array, list_tuple)
@@ -241,7 +274,7 @@ def plot_error_and_schedule(data_cst, len_alpha_array, len_beta_array, list_tupl
     fig, ax_left = plt.subplots(len_alpha_array_sa, 1, sharex=True, sharey=True, figsize=(10,10))
     for k, d in enumerate(data):
         ax_right = ax_left[k].twinx()
-        ax_left[k].plot(d['error_mean'], color='b', label='linear schedule')
+        ax_left[k].plot(d['error_mean'], color='b', label='{} schedule'.format(data_schedule_type))
         ax_left[k].plot(data_original[k]['error_mean'], color='b', linestyle=':', label=r'cst schedule $\beta = $' + '{:.1f}'.format(data_original[k]['beta']))
         ax_right.plot(d['beta_mean'], color='r', label=r'$\beta$')
         ax_left[k].set_title(r'$\alpha = $' + str(d['alpha']) + r' and $\beta_0 = $' + '{:.1f}'.format(d['beta']))
@@ -263,20 +296,16 @@ if __name__ == '__main__':
     N = 500
     NUM_ITER_MCMC = 8000
     NUM_EXP = 10
-    ALPHA_ARRAY = np.linspace(0.5, 5, 10) 
-    BETA_ARRAY = np.linspace(3.5, 5, 4)
+    ALPHA_ARRAY = [0.5, 1.0, 1.5, 2, 3, 4] 
+    BETA_ARRAY = np.linspace(0.5, 3, 6)
 
-    # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
+    generate_data_exploration(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=metropolis_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule_False_8000_10.npy')
     # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis')
-    # data_metropolis_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[3.5 4.  4.5 5. ]_metropolis_transition_constant_schedule_8000_10.npy')
-    # plot_energy(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_metropolis_sequel')
 
-    # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
+    generate_data_exploration(N=N, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, transition_function=glauber_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule_8000_10.npy')
     # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber')
-    # data_glauber_cst = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[3.5 4.  4.5 5. ]_glauber_transition_constant_schedule_8000_10.npy')
-    # plot_energy(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'normalized_energy_mean_grid_search_glauber_sequel')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY, beta_array=[0], transition_function=random_transition, schedule_function=constant_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     # data_random = np.load('500_[0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]_[0]_random_transition_constant_schedule_8000_10.npy')
@@ -284,22 +313,42 @@ if __name__ == '__main__':
     # plot_error(data=data_metropolis_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_metropolis')
     # plot_error(data=data_glauber_cst, data_random=data_random, alpha_array=ALPHA_ARRAY, beta_array=BETA_ARRAY, filename='error_mean_std_glauber')
 
-    ALPHA_ARRAY_SA = np.linspace(3, 5, 3)
-    BETA_0 = 0.5
+    # ALPHA_ARRAY_SA = np.linspace(0.5, 1.5, 3)
+    # BETA_0 = 0.5
     # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    # data_metropolis_linear = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_linear_schedule_8000_10.npy')
-    # plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_linear')
+    # data_metropolis_linear = np.load('500_[3. 4. 5.]_[3]_metropolis_transition_linear_schedule_8000_10.npy')
+    # plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_linear_b03')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=glauber_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     # data_glauber_linear = np.load('500_[3. 4. 5.]_[0.5]_glauber_transition_linear_schedule_8000_10.npy')
     # plot_error_and_schedule(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_glauber_linear, len(ALPHA_ARRAY_SA), 'error_mean_std_glauber_linear')
 
-    generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
-    data_metropolis_exp = np.load('500_[3. 4. 5.]_[0.5]_metropolis_transition_exponential_schedule_8000_10.npy')
-    plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_metropolis_exp, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_exp')
+    # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=metropolis_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # data_metropolis_exp = np.load('500_[0.5 1.  1.5]_[0.5]_metropolis_transition_exponential_schedule_15000_10.npy')
+    # plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [1.0,1.0,2.0])), data_metropolis_exp, len(ALPHA_ARRAY_SA), 'error_mean_std_metropolis_exp_small_a_bis_bis')
 
     # generate_data(N=N, alpha_array=ALPHA_ARRAY_SA, beta_array=[BETA_0], transition_function=glauber_transition, schedule_function=exponential_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
     # data_glauber_exp = np.load('500_[3. 4. 5.]_[0.5]_glauber_transition_exponential_schedule_8000_10.npy')
     # plot_error_and_schedule(data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), data_glauber_exp, len(ALPHA_ARRAY_SA), 'error_mean_std_glauber_exp')
 
 
+    # optimization using multiprocessing lib #
+    ##########################################
+
+    # os.system("taskset -p 0xff %d" % os.getpid())
+    # os.environ['MKL_NUM_THREADS'] = '1'
+    # n_cpu = os.cpu_count()-1
+    # pool = mp.Pool(processes=4)
+    # # pbar = tqdm(total=3)
+    # prod_ab = partial(generate_data_parallel, N=N, transition_function=metropolis_transition, schedule_function=linear_schedule, num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP)
+    # alpha_beta_tuple_list = list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0]))
+    # print(alpha_beta_tuple_list)
+    # output = list(pool.imap(prod_ab, alpha_beta_tuple_list))#list(tqdm(pool.map(prod_ab, alpha_beta_tuple_list), total=3))
+    # # output = list(map(prod_ab, alpha_beta_tuple_list[:1]))#list(tqdm(pool.map(prod_ab, alpha_beta_tuple_list), total=3))
+    # print('output:', output)
+    # pool.close()
+    # pool.join()
+    # filename = 'test_mp'
+
+    # # np.save(filename, output)
+    # plot_error_and_schedule(data_metropolis_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), list(zip(ALPHA_ARRAY_SA, [3.0,2.0,3.0])), output, len(ALPHA_ARRAY_SA), 'test_mp')
