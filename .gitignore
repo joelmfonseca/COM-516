@@ -2,3 +2,7 @@
 *.png
 *.pdf
 *.lprof
+!energy.pdf
+!error_exponential_sa.pdf
+!error_linear_sa.pdf
+!schedules.pdf
