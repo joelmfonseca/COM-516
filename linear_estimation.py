@@ -343,6 +343,55 @@ def plot_error(
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
+def plot_error_with_rdm(
+        schedule_type_name,
+        data_metropolis,
+        data_glauber,
+        data_random,
+        alpha_array, filename):
+    '''Plot the error with a performance comparison between Metropolis-Hastings and Glauber dynamic algorithm.'''
+
+    fig, axes = plt.subplots(len(alpha_array), 1, sharex=True, sharey=True, figsize=(10,9))
+    for k, d in enumerate(data_metropolis):
+        # plot random data
+        axes[k].plot(data_random[k]['error_mean'], color='r', label='random guess')
+        axes[k].fill_between(
+            np.arange(len(data_random[k]['error_mean'])),
+            data_random[k]['error_mean']+data_random[k]['error_std'],
+            data_random[k]['error_mean']-data_random[k]['error_std'],
+            color='r',
+            alpha=0.1
+            )
+        # plot metropolis data
+        axes[k].plot(d['error_mean'], color='b', label='{} MH'.format(schedule_type_name))
+        axes[k].fill_between(
+            np.arange(len(d['error_mean'])),
+            d['error_mean']+d['error_std'],
+            d['error_mean']-d['error_std'],
+            color='b',
+            alpha=0.1
+            )
+        # plot glauber data
+        axes[k].plot(data_glauber[k]['error_mean'], color='g', label='{} Gd'.format(schedule_type_name))
+        axes[k].fill_between(
+            np.arange(len(data_glauber[k]['error_mean'])),
+            data_glauber[k]['error_mean']+data_glauber[k]['error_std'],
+            data_glauber[k]['error_mean']-data_glauber[k]['error_std'],
+            color='g',
+            alpha=0.1
+            )
+        axes[k].set_title(r'$\alpha = $' + str(d['alpha']))
+        axes[k].legend()
+
+    fig.add_subplot(111, frameon=False)
+    # hide tick and tick label of the big axes
+    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+    plt.grid(False)
+    plt.xlabel('\niterations', size=14)
+    plt.ylabel('error\n\n', size=14)
+    plt.tight_layout()
+    fig.savefig(filename + '.pdf')
+
 def plot_schedules(list_data_schedules, len_alpha_array, filename):
     '''Plot the schedule function for the beta parameter.'''
     fig, axes = plt.subplots(2, 1, sharex=True, sharey=True, figsize=(8,6))
@@ -397,19 +446,10 @@ if __name__ == '__main__':
         num_iter_mcmc=NUM_ITER_MCMC,
         num_exp=NUM_EXP
         )
-    generate_data_exploration(
-        N=N,
-        alpha_array=ALPHA_ARRAY,
-        beta_array=[0],
-        transition_function=random_transition,
-        schedule_function=constant_schedule,
-        num_iter_mcmc=NUM_ITER_MCMC, num_exp=NUM_EXP
-        )
     
     # load the data
     data_metropolis_cst = np.load('500_8000_10_[0.5, 1.0, 1.5, 2, 3, 4]_[0.5 1.  1.5 2.  2.5 3. ]_metropolis_transition_constant_schedule.npy')
     data_glauber_cst = np.load('500_8000_10_[0.5, 1.0, 1.5, 2, 3, 4]_[0.5 1.  1.5 2.  2.5 3. ]_glauber_transition_constant_schedule.npy')
-    data_random = np.load('500_8000_10_[0.5, 1.0, 1.5, 2, 3, 4]_[0]_random_transition_constant_schedule.npy')
 
     # plot results
     plot_energy(data_metropolis_cst, data_glauber_cst, len(ALPHA_ARRAY), len(BETA_ARRAY), 'energy')
@@ -479,6 +519,73 @@ if __name__ == '__main__':
         ALPHA_ARRAY,
         'error_exponential_sa'
         )
+
+    # compare with random generation for smaller alpha
+    ALPHA_ARRAY_RDM = [0.01, 0.05, 0.1]
+    generate_data_exploration(
+        N=N,
+        alpha_array=ALPHA_ARRAY_RDM,
+        beta_array=[0],
+        transition_function=random_transition,
+        schedule_function=constant_schedule,
+        num_iter_mcmc=NUM_ITER_MCMC,
+        num_exp=NUM_EXP
+        )
+    generate_data_sa(
+        N=N,
+        alpha_array=ALPHA_ARRAY_RDM,
+        transition_function=metropolis_transition,
+        schedule_function=linear_schedule,
+        num_iter_mcmc=NUM_ITER_MCMC,
+        num_exp=NUM_EXP
+        )
+    generate_data_sa(
+        N=N,
+        alpha_array=ALPHA_ARRAY_RDM,
+        transition_function=metropolis_transition,
+        schedule_function=exponential_schedule,
+        num_iter_mcmc=NUM_ITER_MCMC,
+        num_exp=NUM_EXP
+        )
+    generate_data_sa(
+        N=N,
+        alpha_array=ALPHA_ARRAY_RDM,
+        transition_function=glauber_transition,
+        schedule_function=linear_schedule,
+        num_iter_mcmc=NUM_ITER_MCMC,
+        num_exp=NUM_EXP
+        )
+    generate_data_sa(
+        N=N,
+        alpha_array=ALPHA_ARRAY_RDM,
+        transition_function=glauber_transition,
+        schedule_function=exponential_schedule,
+        num_iter_mcmc=NUM_ITER_MCMC,
+        num_exp=NUM_EXP
+        )
+    
+    data_metropolis_lin_rdm = np.load('500_8000_10_[0.01, 0.05, 0.1]_metropolis_transition_linear_schedule.npy')
+    data_metropolis_exp_rdm = np.load('500_8000_10_[0.01, 0.05, 0.1]_metropolis_transition_exponential_schedule.npy')
+    data_glauber_lin_rdm = np.load('500_8000_10_[0.01, 0.05, 0.1]_glauber_transition_linear_schedule.npy')
+    data_glauber_exp_rdm = np.load('500_8000_10_[0.01, 0.05, 0.1]_glauber_transition_exponential_schedule.npy')
+    data_random = np.load('500_8000_10_[0.01, 0.05, 0.1]_[0]_random_transition_constant_schedule.npy')
+
+    plot_error_with_rdm(
+        'linear',
+        data_metropolis_lin_rdm,
+        data_glauber_lin_rdm,
+        data_random,
+        ALPHA_ARRAY_RDM,
+        'error_linear_sa_rdm'
+    )
+    plot_error_with_rdm(
+        'exponential',
+        data_metropolis_exp_rdm,
+        data_glauber_exp_rdm,
+        data_random,
+        ALPHA_ARRAY_RDM,
+        'error_exponential_sa_rdm'
+    )
 
     ##########################
     # optimization tentative #
