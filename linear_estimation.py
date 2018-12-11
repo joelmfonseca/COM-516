@@ -12,18 +12,6 @@ def relu(vector):
     vector[vector < 0] = 0
     return vector
 
-def matmul(X,Y):
-    '''Dummy manual matrix multiplication.'''
-    # iterate through rows of X
-    result = np.zeros((X.shape[0], Y.shape[1]))
-    for i in range(len(X)):
-        # iterate through columns of Y
-        for j in range(len(Y[0])):
-            # iterate through rows of Y
-            for k in range(len(Y)):
-                result[i][j] += X[i][k] * Y[k][j]
-    return result
-
 def get_energy(Y_vector, vector, W_matrix, vector_dim):
     '''Return the energy of a vector compared to an observation vector.'''
     return np.linalg.norm(Y_vector - relu(np.matmul(W_matrix, vector) / np.sqrt(vector_dim)))**2
