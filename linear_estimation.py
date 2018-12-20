@@ -40,7 +40,8 @@ def metropolis_transition(Y_vector, X_vector_true, X_vector, W_matrix, vector_si
     if not bernouilli_trial:
         X_vector[index] = -X_vector[index]
         energy_next = energy_current
-    return energy_next, get_reconstructed_error(X_vector_true, X_vector, vector_size), X_vector
+    # return energy_next, get_reconstructed_error(X_vector_true, X_vector, vector_size), X_vector
+    return energy_next, X_vector
 
 def glauber_transition(Y_vector, X_vector_true, X_vector, W_matrix, vector_size, beta):
     '''Implementation of the Glauber or heat bath transition function.'''
@@ -56,7 +57,9 @@ def glauber_transition(Y_vector, X_vector_true, X_vector, W_matrix, vector_size,
     else:
         X_vector[index] = -1
         energy_next = get_energy(Y_vector, X_vector, W_matrix, vector_size)
-    return energy_next, get_reconstructed_error(X_vector_true, X_vector, vector_size), X_vector
+    # return energy_next, get_reconstructed_error(X_vector_true, X_vector, vector_size), X_vector
+    return energy_next, X_vector
+    
 
 def constant_schedule(beta, t):
     '''Implementation of a constant schedule for simulated annealing.'''
@@ -149,6 +152,8 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
         W_matrix = np.random.normal(size=(num_samples, vector_size))
         X_vector_true = np.random.choice(a=[-1,1], size=(vector_size,1))
         Y_vector = relu(np.matmul(W_matrix, X_vector_true) / np.sqrt(vector_size))
+        print(Y_vector.shape)
+        print(type(Y_vector), type(Y_vector[0]), Y_vector[0])
         beta_updated, energy, error, X_vector = mcmc(
             Y_vector,
             X_vector_true,
@@ -405,10 +410,10 @@ def plot_schedules(list_data_schedules, len_alpha_array, filename):
 if __name__ == '__main__':
 
     # fixed parameters
-    N = 500
+    N = 1000
     NUM_ITER_MCMC = 8000
     NUM_EXP = 10
-    ALPHA_ARRAY = [0.5, 1.0, 1.5, 2, 3, 4] 
+    ALPHA_ARRAY = [1.7]
     BETA_ARRAY = np.linspace(0.5, 3, 6)
 
     #####################
