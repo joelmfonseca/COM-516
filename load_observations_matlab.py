@@ -41,14 +41,6 @@ def mcmc(Y_vector, W_matrix, vector_size, beta, transition_function, schedule_fu
     start = time.time()
     while energy != 0:
         
-        if i%1000 == 0:
-            end = time.time()
-            elapsed_time = end-start
-            print('iteration={},  energy={:.4f},  elpased time={:1d} min {:1d} sec'.format(i, energy/(alpha*vector_size), int(elapsed_time//60), int(elapsed_time%60)))
-            plt.plot([e/(alpha*vector_size) for e in energy_acc], label='energy')
-            plt.tight_layout()
-            plt.savefig(filename + '.pdf')
-        
         # update inverse temperature
         beta_iter = simulated_annealing(beta, i, schedule_function)
 
@@ -56,6 +48,16 @@ def mcmc(Y_vector, W_matrix, vector_size, beta, transition_function, schedule_fu
         energy, X_hat = transition_function(Y_vector, X_vector, X_vector, W_matrix, vector_size, beta_iter)
         energy_acc.append(energy)
         i += 1
+
+        if i%1000 == 0:
+            end = time.time()
+            elapsed_time = end-start
+            print('iteration={},  energy={:.4f},  elpased time={:1d} min {:1d} sec'.format(i, energy/(alpha*vector_size), int(elapsed_time//60), int(elapsed_time%60)))
+            plt.plot([e/(alpha*vector_size) for e in energy_acc], label='energy')
+            plt.tight_layout()
+            plt.savefig(filename + '.pdf')
+            scipy.io.savemat('STATIONARY', {'x_estimate':X_hat}, appendmat=True, format='5', oned_as='column')
+        
 
 
     end = time.time()
