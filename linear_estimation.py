@@ -42,6 +42,8 @@ def metropolis_transition(Y_vector, X_vector_true, X_vector, W_matrix, vector_si
         energy_next = energy_current
     return energy_next, get_reconstructed_error(X_vector_true, X_vector, vector_size), X_vector
 
+
+
 def glauber_transition(Y_vector, X_vector_true, X_vector, W_matrix, vector_size, beta):
     '''Implementation of the Glauber or heat bath transition function.'''
     index = np.random.choice(vector_size)
@@ -101,6 +103,7 @@ def mcmc(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_functi
 
     return beta_acc, energy_acc, error_acc, X_vector
 
+
 def mcmc_optimized(Y_vector, X_vector_true, W_matrix, vector_size, beta, transition_function, schedule_function):
     '''Apply the Markov Chain Monte-Carlo (MCMC) method with stop condition.'''
 
@@ -140,6 +143,7 @@ def mcmc_optimized(Y_vector, X_vector_true, W_matrix, vector_size, beta, transit
         #TODO check that every array has same length
     return beta_acc, energy_acc, error_acc, X_vector
 
+
 def get_average_statistics(num_samples, vector_size, beta, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Run multiple experiments to average the statistics.'''
     beta_acc = []
@@ -163,6 +167,7 @@ def get_average_statistics(num_samples, vector_size, beta, transition_function, 
         energy_acc.append(energy)
         error_acc.append(error)
     return np.mean(beta_acc, 0), np.mean(energy_acc, 0), np.mean(error_acc, 0), np.std(error_acc, 0) 
+
 
 def generate_data_exploration(N, alpha_array, beta_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Generate and save the data from the experiments by creating all combinations of alpha and beta for exploration.'''
@@ -188,6 +193,7 @@ def generate_data_exploration(N, alpha_array, beta_array, transition_function, s
     filename = (str(N) + '_' + str(num_iter_mcmc) + '_' + str(num_exp) + '_' + str(alpha_array) + '_' + 
                str(beta_array) + '_' + str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '.npy')
     np.save(filename, data)
+
 
 def generate_data_sa(N, alpha_array, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Generate and save the data from the experiments for the simulated annealing technique.'''
@@ -215,6 +221,7 @@ def generate_data_sa(N, alpha_array, transition_function, schedule_function, num
                str(transition_function.__name__) + '_' + str(schedule_function.__name__) + '.npy')
     np.save(filename, data)
 
+
 def generate_data_parallel(alpha_beta_tuple, N, transition_function, schedule_function, num_iter_mcmc, num_exp):
     '''Generate the data from the specified configuration for parallelization.'''
     alpha = alpha_beta_tuple[0]
@@ -229,6 +236,7 @@ def generate_data_parallel(alpha_beta_tuple, N, transition_function, schedule_fu
         'error_mean':error_mean, 'error_std':error_std
         }
 
+
 def load_data(data, len_alpha_array, list_tuple):
     '''Load the data of interest characterized by a list of alpha and beta tuple.'''
     res = []
@@ -236,6 +244,7 @@ def load_data(data, len_alpha_array, list_tuple):
         if (d['alpha'], d['beta']) in list_tuple:
             res.append(d)
     return res
+
 
 def plot_energy(data_metropolis_cst, data_glauber_cst, len_alpha_array, len_beta_array, filename):
     '''Plot the energy of the grid search on the parameters alpha and beta.'''
@@ -262,6 +271,7 @@ def plot_energy(data_metropolis_cst, data_glauber_cst, len_alpha_array, len_beta
     plt.ylabel('energy\n\n', size=14)
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
+
 
 def plot_error(
         schedule_type_name,
@@ -331,6 +341,7 @@ def plot_error(
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
+
 def plot_error_with_rdm(
         schedule_type_name,
         data_metropolis,
@@ -380,6 +391,7 @@ def plot_error_with_rdm(
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
 
+
 def plot_schedules(list_data_schedules, len_alpha_array, filename):
     '''Plot the schedule function for the beta parameter.'''
     fig, axes = plt.subplots(2, 1, sharex=True, sharey=True, figsize=(8,6))
@@ -401,6 +413,7 @@ def plot_schedules(list_data_schedules, len_alpha_array, filename):
     plt.ylabel(r'$\beta$' + '\n', size=14)
     plt.tight_layout()
     fig.savefig(filename + '.pdf')
+
 
 if __name__ == '__main__':
 

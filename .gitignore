@@ -8,3 +8,5 @@
 !error_exponential_sa_rdm.pdf
 !error_linear_sa_rdm.pdf
 !schedules.pdf
+__pycache__/*
+.idea/*
